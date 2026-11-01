@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop Owner - SalonSmart AI</title>
+<style>
+  :root{--g:#176b50;--bg:#f5f7f4;--line:#e0e7e1;--mut:#6b776f}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,Segoe UI,Arial,sans-serif;background:var(--bg);color:#18211f}
+  header{background:#fff;border-bottom:1px solid var(--line);padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
+  header b{color:var(--g);font-size:20px}
+  header a{color:var(--g);text-decoration:none;font-size:14px;border:1px solid var(--line);padding:7px 12px;border-radius:8px}
+  main{max-width:900px;margin:0 auto;padding:18px}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:16px}
+  h2,h3{margin-top:0}
+  .sub{color:var(--mut);font-size:14px}
+  .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+  input,button{font:inherit}
+  input{width:100%;padding:11px;border:1px solid #d3dcd5;border-radius:9px}
+  button{background:var(--g);color:#fff;border:0;padding:10px 14px;border-radius:9px;font-weight:600;cursor:pointer}
+  button.light{background:#fff;color:var(--g);border:1px solid #cddbd2}
+  button.red{background:#b3372b}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:6px}
+  .stat{background:#f1f6f2;border-radius:10px;padding:12px}
+  .stat b{font-size:28px;color:var(--g);display:block}
+  .item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .item .btns{display:flex;gap:6px;flex-wrap:wrap}
+  .badge{font-size:11px;padding:3px 8px;border-radius:20px;background:#eef;color:#335}
+  .badge.arrived{background:#e2f3e8;color:#14583f}
+  .badge.serving{background:#fff1d6;color:#8a5a00}
+  .msg{margin-top:10px;padding:10px 12px;border-radius:9px;background:#e2f3e8;color:#14583f;display:none}
+  .msg.err{background:#fdecea;color:#8a2a1f}
+  .hide{display:none}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .row input{width:auto;flex:1;min-width:140px}
+</style>
+</head>
+<body>
+<header><b>✂ SalonSmart AI · Shop Owner</b><a href="/">Customer page</a></header>
+<main>
+  <div id="msg" class="msg"></div>
+
+  <div id="loginPanel" class="panel">
+    <h2>Login</h2>
+    <p class="sub">Salon ID aur PIN daaliye.</p>
+    <div class="form">
+      <input id="lId" placeholder="Salon ID" inputmode="numeric">
+      <input id="lPin" placeholder="PIN" type="password">
+      <button id="loginBtn">Login</button>
+    </div>
+  </div>
+
+  <div id="createPanel" class="panel">
+    <h2>Nayi shop register karein</h2>
+    <div class="form">
+      <input id="cName" placeholder="Shop ka naam">
+      <input id="cAddr" placeholder="Pata (address)">
+      <input id="cPhone" placeholder="Shop phone">
+      <input id="cBarbers" type="number" min="1" placeholder="Barbers ki sankhya" value="1">
+      <input id="cMin" type="number" min="5" placeholder="Ek service ke minute" value="20">
+      <input id="cPrice" type="number" min="0" placeholder="Rate ₹" value="100">
+      <input id="cPin" type="password" placeholder="PIN banayein (kam se kam 4)">
+      <button id="createBtn">Shop banayein</button>
+    </div>
+  </div>
+
+  <div id="dash" class="hide">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between">
+        <h2 id="dName" style="margin:0"></h2>
+        <button class="light" id="logoutBtn">Logout</button>
+      </div>
+      <p class="sub" id="dInfo"></p>
+      <div class="stats">
+        <div class="stat"><b id="sQueue">0</b>queue mein</div>
+        <div class="stat"><b id="sDone">0</b>aaj poore hue</div>
+        <div class="stat"><b id="sCam">—</b><span id="sCamTxt">camera</span></div>
+        <div class="stat"><b id="sNew">0</b>min naye customer ka wait</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Queue</h3>
+      <div id="queue"></div>
+      <div class="row" style="margin-top:14px">
+        <input id="wName" placeholder="Bina booking wale customer ka naam (optional)">
+        <button class="light" id="walkBtn">+ Walk-in jodiye</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Camera count</h3>
+      <p class="sub">Camera chal raha ho to <code>camera.py</code> apne aap bhejta hai. Camera na ho to yahan haath se daal sakte hain.</p>
+      <div class="row">
+        <input id="manual" type="number" min="0" placeholder="Abhi shop mein kitne log hain?">
+        <button class="light" id="manualBtn">Count bhejein</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let sid = null, pin = null, timer = null;
+try { sid = sessionStorage.getItem('ss_id'); pin = sessionStorage.getItem('ss_pin'); } catch (e) {}
+
+function show(t, err) { const m = $('#msg'); m.textContent = t; m.className = 'msg' + (err ? ' err' : ''); m.style.display = t ? 'block' : 'none'; }
+async function api(path, opt = {}) {
+  const r = await fetch(path, {...opt, headers: {'Content-Type': 'application/json', 'X-Pin': pin || '', ...(opt.headers || {})}});
+  let d = {}; try { d = await r.json(); } catch (e) {}
+  if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'Details check kijiye');
+  return d;
+}
+
+$('#createBtn').addEventListener('click', async () => {
+  try {
+    const d = await api('/api/salons', {method: 'POST', body: JSON.stringify({
+      name: $('#cName').value, address: $('#cAddr').value, phone: $('#cPhone').value,
+      barbers: Number($('#cBarbers').value), service_minutes: Number($('#cMin').value),
+      price: Number($('#cPrice').value), pin: $('#cPin').value})});
+    show(`Shop ban gayi! Aapka Salon ID: ${d.salon_id}. Ise aur PIN ko yaad rakhiye, phir upar Login karein.`);
+    $('#lId').value = d.salon_id;
+  } catch (e) { show(e.message, true); }
+});
+
+$('#loginBtn').addEventListener('click', async () => {
+  sid = $('#lId').value.trim(); pin = $('#lPin').value;
+  try { await refresh(); try { sessionStorage.setItem('ss_id', sid); sessionStorage.setItem('ss_pin', pin); } catch (e) {} start(); show(''); }
+  catch (e) { sid = pin = null; show(e.message, true); }
+});
+$('#logoutBtn').addEventListener('click', () => {
+  try { sessionStorage.clear(); } catch (e) {}
+  sid = pin = null; clearInterval(timer);
+  $('#dash').classList.add('hide'); $('#loginPanel').classList.remove('hide'); $('#createPanel').classList.remove('hide');
+});
+
+function buttons(it) {
+  if (it.status === 'booked') return `<button data-a="arrived" data-id="${it.id}">Entry ho gayi ✅</button><button class="red" data-a="cancelled" data-id="${it.id}">Cancel</button>`;
+  if (it.status === 'arrived') return `<button data-a="serving" data-id="${it.id}">Start service</button><button class="red" data-a="cancelled" data-id="${it.id}">Cancel</button>`;
+  if (it.status === 'serving') return `<button data-a="done" data-id="${it.id}">Done ✔</button>`;
+  return '';
+}
+const LABEL = {booked: 'Booking · aane wala', arrived: 'Shop mein · wait', serving: 'Service chal rahi'};
+
+async function refresh() {
+  const d = await api(`/api/owner/${sid}/queue`);
+  $('#loginPanel').classList.add('hide'); $('#createPanel').classList.add('hide'); $('#dash').classList.remove('hide');
+  $('#dName').textContent = d.salon.name;
+  $('#dInfo').textContent = `${d.salon.barbers} barber · ek service ~${d.salon.service_minutes} min · Salon ID ${d.salon.id}`;
+  $('#sQueue').textContent = d.items.length;
+  $('#sDone').textContent = d.done_today;
+  $('#sNew').textContent = d.new_customer_estimate.est_wait;
+  if (d.camera) { $('#sCam').textContent = d.camera.people; $('#sCamTxt').textContent = d.camera.live ? 'log (camera live)' : `log (purana, ${d.camera.age_seconds}s pehle)`; }
+  else { $('#sCam').textContent = '—'; $('#sCamTxt').textContent = 'camera data nahi'; }
+  $('#queue').innerHTML = d.items.length ? d.items.map(it => `
+    <div class="item">
+      <div><b>${esc(it.name)}</b> ${it.phone ? '· ' + esc(it.phone) : '· walk-in'}<br>
+        <span class="badge ${esc(it.status)}">${LABEL[it.status]}</span>
+        <span class="sub"> ${it.status !== 'serving' ? `number ${it.position} · ~${it.est_wait} min (${esc(it.est_time)})` : ''}</span></div>
+      <div class="btns">${buttons(it)}</div>
+    </div>`).join('') : '<p class="sub">Queue khali hai.</p>';
+}
+function start() { clearInterval(timer); timer = setInterval(() => refresh().catch(() => {}), 4000); }
+
+$('#queue').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b || !b.dataset.a) return;
+  try { await api(`/api/owner/${sid}/booking/${b.dataset.id}/${b.dataset.a}`, {method: 'POST'}); await refresh(); show(''); }
+  catch (err) { show(err.message, true); }
+});
+$('#walkBtn').addEventListener('click', async () => {
+  try { await api(`/api/owner/${sid}/walkin`, {method: 'POST', body: JSON.stringify({name: $('#wName').value || 'Walk-in'})}); $('#wName').value = ''; await refresh(); }
+  catch (err) { show(err.message, true); }
+});
+$('#manualBtn').addEventListener('click', async () => {
+  try { await api(`/api/crowd/${sid}`, {method: 'POST', body: JSON.stringify({people: Number($('#manual').value)})}); await refresh(); show('Count bhej diya.'); }
+  catch (err) { show(err.message, true); }
+});
+
+if (sid && pin) { refresh().then(start).catch(() => { sid = pin = null; }); }
+</script>
+</body>
+</html>
